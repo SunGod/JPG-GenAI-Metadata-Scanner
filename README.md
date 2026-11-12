@@ -1,174 +1,171 @@
 <img src="images/a1111_jpg_metadata_scanner_banner.jpg" alt="A1111 JPG Metadata Scanner" width="100%">
 
-# A1111 JPG Metadata Scanner
+# JPG GenAI Metadata Scanner
 
-**Version:** 1.00  
-**Script:** `scan_a1111_jpg_metadata.py`
+**Version 1.01** · **macOS** · **Python 3.9+** · **Standard library only**
 
-A **read-only Python utility** for finding and examining metadata in JPG/JPEG images, with emphasis on **AUTOMATIC1111 (A1111) Stable Diffusion WebUI** generation and postprocessing information.
+`jpg_genai_metadata_scanner.py` scans JPEG files for embedded generative-AI metadata, identifies **Draw Things** metadata where there is application-specific evidence, and reports other recognizable AI generation metadata under **GenAI**. It can also distinguish ordinary descriptive metadata from JPEGs with no meaningful embedded metadata.
 
-It answers two questions:
+It is a **metadata detector and inspector**, not a metadata converter. It does not create ComfyUI workflows, convert JPEGs to PNGs, regenerate images, or change metadata inside images. The only optional writes are **CSV reports** and **moving files into classification directories** when you explicitly request those actions.
 
-1. **Which JPGs have recognizable A1111-related metadata?** Scan a folder and classify files as `FULL`, `PARTIAL`, or `NONE` (with `ERROR` for unreadable or malformed metadata).
-2. **What metadata is actually stored in a JPG?** Use `--inspect` to display readable EXIF, XMP, IPTC, JPEG comments, and other header metadata for a single file.
+## What's new in 1.01
 
-> [!IMPORTANT]
-> This is an **inspector, not a converter**. It does not modify JPGs, convert images to PNG, or create ComfyUI workflows.
+Compared with the previous official release (1.00), the scanner:
 
-## Requirements
+- Expands beyond A1111-focused detection to recognize generative-AI metadata in EXIF, XMP, IPTC, JPEG comments and supported JPEG application segments.
+- Identifies **Draw Things** from its EXIF Software value or distinctive Draw Things generation JSON.
+- Groups recognizable A1111-style settings and other GenAI information under **GenAI**, without assigning unsupported A1111 provenance.
+- Uses the five **Metadata Type** values below, with an expanded CSV report containing the extracted metadata and detection evidence.
+- Adds `--show-genai-only` and independent file organization options for Draw Things and GenAI matches.
 
-- Python 3 (Python 3.8 or newer recommended).
-- No additional Python packages: **standard library only**.
-- Windows 10/11, macOS, or another platform with Python 3.
+## Metadata Types
 
-## Quick start
+| Metadata Type | Meaning | Optional move destination |
+| --- | --- | --- |
+| **Draw Things** | EXIF Software identifies Draw Things, or distinctive Draw Things configuration JSON is detected. | `Draw_Things/` |
+| **GenAI** | Recognizable generative-AI generation or processing metadata; not specifically identified as Draw Things. Includes conventional A1111-style settings. | `GenAI/` |
+| **Non-GenAI** | Embedded descriptive metadata exists, but no recognized GenAI information is found. | — |
+| **None** | No meaningful descriptive metadata is found. Basic JPEG structure (e.g., JFIF headers) does not count. | — |
+| **Error** | The JPEG or its metadata cannot be reliably inspected. | — |
 
-Save `scan_a1111_jpg_metadata.py` in the folder containing your JPEGs, open a terminal there, and run:
+The scanner reads **all supported metadata fields before classifying a file**. Specific Draw Things identification takes priority over generic generation-parameter patterns. Each JPEG receives one Metadata Type.
 
-**Windows (Command Prompt or PowerShell):**
+## Requirements and installation
 
-```cmd
-py scan_a1111_jpg_metadata.py .
-```
+- macOS with **Python 3.9 or newer** accessible as `python3`.
+- No third-party packages, network connection, ComfyUI installation, or Draw Things installation required.
+- Read access to JPG/JPEG files. CSV reporting requires permission to write the report; file organization requires permission to create directories and move files.
 
-**macOS (Terminal):**
+Copy `jpg_genai_metadata_scanner.py` into a convenient location. Run it from Terminal either in the folder being scanned, or provide a directory or JPEG path explicitly.
+
+## Quick start (macOS)
+
+Scan the current folder **without modifying any JPEGs**:
 
 ```bash
-python3 scan_a1111_jpg_metadata.py .
+python3 jpg_genai_metadata_scanner.py .
 ```
 
-`.` means the **current directory**. By default, subfolders are not scanned. The scanner recognizes `.jpg` and `.jpeg` extensions case-insensitively (including `.JPG` and `.JPEG`). Other file types, including PNGs, are ignored in folder scans.
+Show only individual **Draw Things** and **GenAI** results, while preserving all five types in the summary and CSV:
 
-## Examples
-
-| Task | Windows command |
-| --- | --- |
-| Scan current folder | `py scan_a1111_jpg_metadata.py .` |
-| Scan another folder | `py scan_a1111_jpg_metadata.py "C:\Images\My JPGs"` |
-| Include subfolders | `py scan_a1111_jpg_metadata.py . --recursive` |
-| Write results to CSV | `py scan_a1111_jpg_metadata.py . --report results.csv` |
-| CSV plus summary only | `py scan_a1111_jpg_metadata.py . --quiet --report results.csv` |
-| Classify a single JPEG | `py scan_a1111_jpg_metadata.py "image001.jpg"` |
-| **Inspect** one JPEG's metadata | `py scan_a1111_jpg_metadata.py --inspect "image001.jpg"` |
-| Show help | `py scan_a1111_jpg_metadata.py --help` |
-| Show version | `py scan_a1111_jpg_metadata.py --version` |
-
-On macOS, substitute `python3` for `py`. Quote file/folder paths that contain spaces.
-
-### Sample scan output
-
-```text
-[FULL   ] image001.jpg (EXIF UserComment)
-[PARTIAL] image002.jpg (EXIF UserComment; A1111-style postprocessing fields: Postprocess upscaler)
-[NONE   ] image003.jpg (No recognizable A1111 metadata)
-
-Total JPEG files: 3 | A1111 FULL: 1 | PARTIAL: 1 | NONE: 1 | ERRORS: 0
+```bash
+python3 jpg_genai_metadata_scanner.py . --show-genai-only --report metadata.csv
 ```
 
-## What `FULL`, `PARTIAL`, `NONE`, and `ERROR` mean
+Scan subfolders too:
 
-| Result | Meaning | Example |
-| --- | --- | --- |
-| **FULL** | One recognized text field contains A1111-style **Steps**, **Sampler**, and **Seed** settings. This is *not* proof that the original generation workflow is complete or reproducible. | `Steps: 30, Sampler: Euler a, Seed: 12345` |
-| **PARTIAL** | Recognizable A1111-style parameters exist, but the `FULL` signature is missing. Can include postprocessing or incomplete generation settings. | `Postprocess upscale by: 4, Postprocess upscaler: 4x-UltraSharp` |
-| **NONE** | No recognizable A1111 parameters were detected by the scanner's current rules. **Other metadata may still be present.** | Camera EXIF or descriptive text only |
-| **ERROR** | The file could not be scanned reliably because of a malformed JPEG, read error, or unparseable EXIF without usable recognized content. | Truncated JPEG metadata |
-
-`PARTIAL` can also result from distinctive fields like `Hires upscaler`, `CFG scale`, or combinations of two common generation fields such as `Steps` plus `Sampler`.
-
-**Important distinction:** these are **metadata recognition categories**, **not ComfyUI workflow feasibility categories**. `FULL` does not promise a complete graph, and `PARTIAL` can still preserve useful processing history. Detection is pattern-based: it cannot certify what program actually created a file, and unfamiliar A1111 metadata may be classified `NONE`.
-
-## What metadata does the scanner recognize?
-
-For directory classification, the scanner checks readable text in **JPEG header metadata**:
-
-- **EXIF `UserComment`** — the usual location for A1111 generation information in JPGs.
-- **EXIF `ImageDescription`**.
-- **EXIF `XPComment`**.
-- **JPEG `COM` (comment) segments**.
-
-It examines header segments **without decoding the image pixels**, making it practical for large collections.
-
-> [!NOTE]
-> The classifier does **not** currently evaluate XMP or IPTC text for A1111 patterns. Those formats can still be displayed by the **single-file inspector** when readable.
-
-## Inspect all readable metadata in a single JPG
-
-To see *what* is actually stored, regardless of whether it matches A1111 patterns:
-
-```cmd
-py scan_a1111_jpg_metadata.py --inspect "image001.jpg"
+```bash
+python3 jpg_genai_metadata_scanner.py . --recursive --show-genai-only --report metadata.csv
 ```
 
-You may also provide an absolute or relative path to the file. The inspector reports the A1111 detection category, then displays accessible metadata, including:
+Organize matched files into `Draw_Things/` and `GenAI/` (these options **move files**):
 
-- **EXIF:** `UserComment`, `ImageDescription`, software, dates, orientation, GPS, and other known/unknown tag IDs.
-- **XMP:** XML/text metadata; Extended XMP when all parts can be assembled.
-- **IPTC:** IPTC-IIM fields in Photoshop APP13 resource blocks.
-- **JPEG comments:** `COM` segments.
-- **Other application segments:** recognized fields or a summary of unrecognized APP blocks.
-- **Technical JPEG data:** JFIF headers, ICC color-profile segments, Adobe APP14, where present.
-
-Readable text is printed in full. Binary data is **summarized**, not dumped in its entirety. If some EXIF references are malformed, the inspector attempts to preserve other readable fields and show parse warnings.
-
-A file can have **no descriptive or generation metadata** while still containing technical headers such as JFIF or ICC. Conversely, a `NONE` scan result does **not** mean the file is metadata-free.
-
-## CSV reports
-
-To save an inventory suitable for Excel or another spreadsheet program:
-
-```cmd
-py scan_a1111_jpg_metadata.py . --report results.csv
+```bash
+python3 jpg_genai_metadata_scanner.py . \
+  --show-genai-only \
+  --move-draw-things \
+  --move-genai \
+  --report metadata.csv
 ```
 
-The CSV contains one row per scanned JPEG and these columns:
+Add `--recursive` to organize matches found in subdirectories. To inspect *all readable metadata* in one file:
 
-| Column | Contents |
-| --- | --- |
-| `file` | JPEG file path |
-| `a1111_metadata` | `FULL`, `PARTIAL`, `NONE`, or `ERROR` |
-| `location` | EXIF field or comment location involved |
-| `details` | Classification explanation or error |
-
-The report uses UTF-8 with BOM (`utf-8-sig`) for spreadsheet compatibility. **The report file is created or overwritten if it already exists.** JPG source files are not modified.
-
-For an inventory without per-file terminal output:
-
-```cmd
-py scan_a1111_jpg_metadata.py . --quiet --report results.csv
+```bash
+python3 jpg_genai_metadata_scanner.py --inspect "image10739.jpg"
 ```
+
+Check the installed script version and command syntax:
+
+```bash
+python3 jpg_genai_metadata_scanner.py --version
+python3 jpg_genai_metadata_scanner.py --help
+```
+
+The final `.` in the examples means **the current directory**. The default scan is nonrecursive. Extension matching is case-insensitive for both `.jpg` and `.jpeg`.
 
 ## Command-line reference
 
-| Argument | Purpose |
+| Argument | Action |
 | --- | --- |
-| `[directory]` | Optional directory or single `.jpg`/`.jpeg` file to classify. Defaults to `.` (current directory). |
-| `--inspect FILE.jpg` | Inspect one JPG and print its readable metadata rather than running a normal scan. |
+| `directory` | Optional JPEG file or directory to scan; defaults to `.`. |
+| `--inspect FILE.jpg` | Print all readable descriptive and technical JPEG metadata for one file. Cannot be combined with other scan, CSV, filtering or move options. |
 | `--recursive` | Include subdirectories during a directory scan. |
-| `--report FILE.csv` | Write per-file results to a CSV. |
-| `--quiet` | Suppress per-file console results; show summary totals. CSV output is unaffected. |
-| `--version` | Show internal script version and exit. |
-| `-h`, `--help` | Print help and exit. |
+| `--report FILE.csv` | Write a CSV with **every scanned file**, including Non-GenAI, None and Error, and extracted readable metadata. |
+| `--show-genai-only` | Show **only Draw Things and GenAI individual file lines** on the terminal. All five types remain in CSV and summary totals. |
+| `--move-draw-things` | Move **Draw Things** images under `Draw_Things/`. |
+| `--move-genai` | Move **GenAI** images under `GenAI/`. |
+| `--quiet` | Suppress all individual file lines; still print summary totals. |
+| `--version` | Print `JPG GenAI Metadata Scanner 1.01`. |
+| `--help`, `-h` | Print command-line help. |
 
-`--inspect` **cannot** be combined with `--recursive`, `--report`, or `--quiet`. `--recursive` matters only when the scan target is a directory.
+### File-moving behavior and safeguards
 
-### Exit codes
+- Both move options are **off by default** and can be selected independently or together.
+- The folders are created in the scan root (`Draw_Things/`, `GenAI/`), or next to the selected file when scanning one JPG.
+- For recursive scans, the relative subdirectory structure is maintained beneath the destination folder (e.g. `events/a.jpg` → `GenAI/events/a.jpg`).
+- Existing destination files are **skipped**, not deliberately overwritten. A collision is reported as `SKIPPED_EXISTS` and causes a nonzero exit code.
+- The `Draw_Things/` and `GenAI/` destination trees are excluded from **recursive scans when at least one move option is enabled**; if no move option is enabled, a recursive scan can include them.
+- JPEG bytes and embedded metadata are not rewritten. Moving a file changes its location on disk; filesystem bookkeeping associated with a move may change.
+- Source symbolic-link JPEGs are not moved. Destination directories that are symbolic links are rejected for moves.
 
-| Code | Meaning |
+The scanner does **not** automatically organize or reclassify files placed in older directory names. Manage existing collections before running bulk moves.
+
+## Terminal output
+
+During a normal scan, the program prints **one tab-separated line per JPEG**:
+
+```text
+[Draw Things] image10739.jpg	Source: EXIF Software	Application: Draw Things
+[GenAI] image10740.jpg	Source: EXIF UserComment	Application: Unknown
+[Non-GenAI] image10741.jpg	Source: EXIF DateTime	Application: Unknown
+[None] image10742.jpg	Source: None	Application: Unknown
+```
+
+A final summary lists totals for **Draw Things, GenAI, Non-GenAI, None, and Error**, plus move totals if moves were requested. The `--show-genai-only` option suppresses individual Non-GenAI, None, **and Error** lines, but **does not suppress errors in the summary or report**. The separate `--inspect` command intentionally prints multiple lines of metadata for one file.
+
+## CSV report
+
+`--report FILE.csv` writes UTF-8 CSV (with BOM for spreadsheet compatibility), one row for each scanned JPEG. Fields are:
+
+| Column | Contents |
 | --- | --- |
-| `0` | Completed without reported file-level errors. |
-| `1` | Scan completed with at least one `ERROR` file. |
-| `2` | Invalid usage, inspection failure, or output I/O error. |
+| `file` | Source path at the time of scanning (before any requested move). |
+| `metadata_type` | Draw Things / GenAI / Non-GenAI / None / Error. |
+| `detected_application` | Application identified by supported metadata, if any, or `Unknown`. |
+| `detection_source` | Metadata field providing the primary detection evidence. |
+| `metadata_sources` | Locations containing readable metadata, such as EXIF, XMP or IPTC. |
+| `classification_reason` | Why the type was assigned. |
+| `metadata` | JSON array embedded in the CSV cell, with `field`, `source` and `value` for each readable metadata entry. |
+| `move_status` | `MOVED`, `SKIPPED_EXISTS`, `FAILED`, `NOT_REQUESTED`, or `NOT_APPLICABLE`. |
+| `destination_path` | Move destination when a move was attempted. |
 
-## Limitations and privacy
+The `metadata` column intentionally includes **ordinary EXIF/IPTC fields as well as GenAI content**. It may be large, especially when Draw Things records lengthy performance-profile arrays. Binary entries are summarized rather than copied in full. A CSV report can therefore contain personal/location metadata already present in the original images; review before sharing it.
 
-- **Read-only JPEG access:** No recompression, pixel decoding, timestamp edits, metadata writes, or image conversion.
-- **JPG/JPEG only:** PNG metadata is not scanned by this utility.
-- **Heuristic classification:** `FULL` / `PARTIAL` identify characteristic field patterns, not proven software origin or guaranteed workflow reproducibility.
-- **Incomplete coverage:** Nonstandard metadata formats or A1111 text outside the recognized classification fields can result in `NONE`. `--inspect` offers a wider look at metadata but cannot necessarily decode every proprietary/binary structure.
-- **Malformed metadata:** A broken EXIF reference may produce an `ERROR` classification or an inspection warning.
-- **Sensitive metadata:** Inspection may reveal prompts, EXIF GPS locations, and other personal details. Review output before sharing it publicly.
+## Detection and limitations
 
-### Intended workflow
+- Reads supported JPEG EXIF (including `ImageDescription`, `Software` and `UserComment`), XMP/Extended XMP, IPTC in Photoshop APP13, JPEG COM, and other recognizable APP metadata. The scanner does not exhaustively interpret every proprietary JPEG container or extension.
+- **Draw Things** identification accepts either the `Software` tag identifying Draw Things or a distinctive JSON configuration including characteristic `v2` settings. Ordinary A1111-like `Steps`, `Sampler` and `Seed` text in a Draw Things image does **not** override Draw Things identification.
+- **GenAI** includes conventional A1111-style infotext and other recognized generation/workflow field patterns; it is a metadata classification, **not** an A1111 application attribution.
+- A file with only ordinary EXIF/IPTC tags will typically be **Non-GenAI**. JPEG structural markers alone are **None**.
+- Unusual, malformed, encoded or proprietary metadata may be missed or returned as Error; a type of None/Non-GenAI does not certify that no unsupported data exists.
+- Reading JPEG headers does not verify or decode the compressed image pixels. The script does not identify visual AI content using image analysis.
+- No PNG, WebP, HEIC, MP4, or other format is supported. No image conversion or ComfyUI metadata writing occurs.
+- Non-GenAI metadata is preserved in the CSV rather than filtered down to GenAI-only fields.
 
-Use the scanner to inventory your JPEG collection, inspect representative `FULL` and `PARTIAL` examples, then decide separately whether to convert selected JPGs to PNGs. **This script is intentionally not a converter.**
+## Troubleshooting
+
+**`python3: command not found`** — Install a supported Python 3 interpreter and confirm `python3 --version` works.
+
+**`Permission denied`** — Confirm the scan directory is readable; for `--report` or move flags, confirm the destination is writable.
+
+**Unexpected empty results** — The default scan covers only the current directory and `.jpg`/`.jpeg` files. Add `--recursive` to include subfolders, or inspect one specific file with `--inspect`.
+
+**Files were not moved** — Move options must be explicitly supplied. Check the summary and CSV `move_status` for destination collisions (`SKIPPED_EXISTS`), symlinks, or move errors (`FAILED`).
+
+**CSV too large** — Each row may include a full readable EXIF/IPTC inventory, XMP text, and generation JSON. This is expected behavior in 1.01; use the classification and application columns to filter your spreadsheet views.
+
+**Exit status:** `0` means no detected scan/move problems; `1` means at least one JPEG inspection error or failed/skipped move; `2` is used for invalid inspection requests or certain I/O/argument errors.
+
+## Safety
+
+Begin with a **scan-only** run and review its CSV before organizing valuable images. Files are read-only unless you explicitly request a move; the scanner does not create backups or offer an undo operation for moves. Keep a separate backup of important collections.

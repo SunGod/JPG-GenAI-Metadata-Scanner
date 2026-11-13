@@ -1,4 +1,4 @@
-<img src="images/a1111_jpg_metadata_scanner_banner.jpg" alt="A1111 JPG Metadata Scanner" width="100%">
+<img src="images/JPG-GenAI-Metadata-Scanner-banner.jpg" alt="A1111 JPG Metadata Scanner" width="100%">
 
 # JPG GenAI Metadata Scanner
 
